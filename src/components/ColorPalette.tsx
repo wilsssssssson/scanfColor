@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
-import { MorandiColors } from '../constants/Morandi_Colors';
 import { MorandiColorsI18n } from '../constants/Morandi_Colors_i18n';
 import '../styles/ColorPalette.css';
 import '../styles/Toast.css';
-export const ColorPalette: React.FC = () => {
+
+interface ColorPaletteProps {
+    currentTheme: Record<string, string>;
+}
+
+export const ColorPalette: React.FC<ColorPaletteProps> = ({ currentTheme }) => {
     const [selectedLanguage, setSelectedLanguage] = useState<'zh' | 'en'>('zh');
     const [selectedColor, setSelectedColor] = useState<string | null>(null);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -22,7 +26,6 @@ export const ColorPalette: React.FC = () => {
     return (
         <div className="color-palette">
             <header className="header">
-                <h1 className="header-title">莫兰迪色板</h1>
                 <div className="language-switch">
                     <button 
                         className={selectedLanguage === 'zh' ? 'active' : ''} 
@@ -40,7 +43,7 @@ export const ColorPalette: React.FC = () => {
             </header>
 
             <div className="colors-grid">
-                {Object.entries(MorandiColors).map(([key, color]) => (
+                {Object.entries(currentTheme).map(([key, color]) => (
                     <div 
                         key={key}
                         className="color-item"

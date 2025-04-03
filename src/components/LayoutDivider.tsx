@@ -7,6 +7,8 @@ interface LayoutSection {
     color: string;
     width: number;
     height: number;
+    row: number;
+    col: number;
 }
 
 type PresetLayout = 
@@ -17,54 +19,77 @@ type PresetLayout =
 type Direction = 'horizontal' | 'vertical';
 
 export const LayoutDivider: React.FC = () => {
-    const [direction, setDirection] = useState<Direction>('horizontal');
-    const [sections, setSections] = useState<LayoutSection[]>(
-        Array.from({ length: 2 }, (_, i) => ({
-            id: String(i + 1),
-            color: '#ffffff',
-            width: 1,
-            height: 1
-        }))
-    );
+    const [rows, setRows] = useState(2);
+    const [cols, setCols] = useState(2);
+    const [sections, setSections] = useState<LayoutSection[]>(() => {
+        const sections: LayoutSection[] = [];
+        for (let row = 0; row < 2; row++) {
+            for (let col = 0; col < 2; col++) {
+                sections.push({
+                    id: `${row}-${col}`,
+                    color: '#ffffff',
+                    width: 1,
+                    height: 1,
+                    row,
+                    col
+                });
+            }
+        }
+        return sections;
+    });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
     const [dragStartIndex, setDragStartIndex] = useState(0);
+    const [dragDirection, setDragDirection] = useState<Direction>('horizontal');
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [customRatios, setCustomRatios] = useState('1:1');
-    const [sectionCount, setSectionCount] = useState(2);
     const [drawing_board_fixed, setDrawing_board_fixed] = useState(false);
+    const [currentTheme, setCurrentTheme] = useState(MorandiColors);
 
-    const handleMouseDown = (e: React.MouseEvent, index: number) => {
+    const handleThemeChange = (theme: any) => {
+        setCurrentTheme(theme);
+        // 更新所有区域的颜色，使用主题中的颜色
+        const themeColors = Object.values(theme);
+        setSections(sections.map((section, index) => ({
+            ...section,
+            color: themeColors[index % themeColors.length] as string
+        })));
+    };
+
+    const handleMouseDown = (e: React.MouseEvent, index: number, direction: Direction) => {
         setIsDragging(true);
         setDragStartPos({ x: e.clientX, y: e.clientY });
         setDragStartIndex(index);
+        setDragDirection(direction);
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
         if (!isDragging) return;
 
-        const delta = direction === 'horizontal' 
+        const delta = dragDirection === 'horizontal' 
             ? e.clientX - dragStartPos.x 
             : e.clientY - dragStartPos.y;
 
-        const containerSize = direction === 'horizontal'
+        const containerSize = dragDirection === 'horizontal'
             ? e.currentTarget.parentElement?.offsetWidth || 0
             : e.currentTarget.parentElement?.offsetHeight || 0;
 
-        const deltaSize = (delta / containerSize) * sectionCount;
+        const deltaSize = (delta / containerSize) * (dragDirection === 'horizontal' ? cols : rows);
 
         const newSections = [...sections];
-        const newSize = Math.max(0.5, Math.min(sectionCount - 0.5, sections[dragStartIndex][direction === 'horizontal' ? 'width' : 'height'] + deltaSize));
-        const nextSize = Math.max(0.5, Math.min(sectionCount - 0.5, sections[dragStartIndex + 1][direction === 'horizontal' ? 'width' : 'height'] - deltaSize));
+        const affectedSections = sections.filter(section => 
+            dragDirection === 'horizontal' 
+                ? section.row === Math.floor(dragStartIndex / cols)
+                : section.col === dragStartIndex % cols
+        );
 
-        newSections[dragStartIndex] = { 
-            ...newSections[dragStartIndex], 
-            [direction === 'horizontal' ? 'width' : 'height']: newSize 
-        };
-        newSections[dragStartIndex + 1] = { 
-            ...newSections[dragStartIndex + 1], 
-            [direction === 'horizontal' ? 'width' : 'height']: nextSize 
-        };
+        const newSize = Math.max(0.5, Math.min((dragDirection === 'horizontal' ? cols : rows) - 0.5, 
+            affectedSections[0][dragDirection === 'horizontal' ? 'width' : 'height'] + deltaSize));
+        const nextSize = Math.max(0.5, Math.min((dragDirection === 'horizontal' ? cols : rows) - 0.5, 
+            affectedSections[1][dragDirection === 'horizontal' ? 'width' : 'height'] - deltaSize));
+
+        affectedSections[0][dragDirection === 'horizontal' ? 'width' : 'height'] = newSize;
+        affectedSections[1][dragDirection === 'horizontal' ? 'width' : 'height'] = nextSize;
 
         setSections(newSections);
     };
@@ -73,15 +98,23 @@ export const LayoutDivider: React.FC = () => {
         setIsDragging(false);
     };
 
-    const handleSectionCountChange = (count: number) => {
-        setSectionCount(count);
-        setSections(Array.from({ length: count }, (_, i) => ({
-            id: String(i + 1),
-            color: '#ffffff',
-            width: 1,
-            height: 1
-        })));
-        setCustomRatios(Array(count).fill('1').join(':'));
+    const handleGridSizeChange = (newRows: number, newCols: number) => {
+        setRows(newRows);
+        setCols(newCols);
+        const newSections: LayoutSection[] = [];
+        for (let row = 0; row < newRows; row++) {
+            for (let col = 0; col < newCols; col++) {
+                newSections.push({
+                    id: `${row}-${col}`,
+                    color: '#ffffff',
+                    width: 1,
+                    height: 1,
+                    row,
+                    col
+                });
+            }
+        }
+        setSections(newSections);
     };
 
     const applyPresetLayout = (preset: PresetLayout) => {
@@ -95,13 +128,15 @@ export const LayoutDivider: React.FC = () => {
             case 'equal':
                 setSections(sections.map(section => ({
                     ...section,
-                    [direction === 'horizontal' ? 'width' : 'height']: 1
+                    width: 1,
+                    height: 1
                 })));
                 break;
             case 'full':
                 setSections(sections.map((section, index) => ({
                     ...section,
-                    [direction === 'horizontal' ? 'width' : 'height']: index === 0 ? sectionCount : 0
+                    width: section.col === 0 ? cols : 0,
+                    height: section.row === 0 ? rows : 0
                 })));
                 break;
         }
@@ -113,12 +148,13 @@ export const LayoutDivider: React.FC = () => {
 
     const applyCustomRatios = () => {
         const ratios = customRatios.split(':').map(Number);
-        if (ratios.length !== sectionCount) return;
+        if (ratios.length !== rows * cols) return;
 
         const total = ratios.reduce((a, b) => a + b, 0);
         setSections(sections.map((section, index) => ({
             ...section,
-            [direction === 'horizontal' ? 'width' : 'height']: (ratios[index] / total) * sectionCount
+            width: (ratios[index] / total) * cols,
+            height: (ratios[index] / total) * rows
         })));
         setShowCustomInput(false);
     };
@@ -143,32 +179,71 @@ export const LayoutDivider: React.FC = () => {
         }
     };
 
-    const DrawingBoardFixed =()=>{
+    const DrawingBoardFixed = () => {
         setDrawing_board_fixed(!drawing_board_fixed);
     }
 
     return (
         <div className="layout-divider">
+
+            <div 
+                className={`layout-container ${drawing_board_fixed ? 'fixed' : ''}`}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+            >
+                {sections.map((section, index) => (
+                    <React.Fragment key={section.id}>
+                        <div 
+                            className="layout-section"
+                            style={{ 
+                                gridColumn: `${section.col + 1} / span 1`,
+                                gridRow: `${section.row + 1} / span 1`,
+                                backgroundColor: section.color
+                            }}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, section.id)}
+                        >
+                            <div className="section-label">{section.id}</div>
+                        </div>
+                        {section.col < cols - 1 && (
+                            <div 
+                                className="resize-handle horizontal"
+                                onMouseDown={(e) => handleMouseDown(e, index, 'horizontal')}
+                            />
+                        )}
+                        {section.row < rows - 1 && (
+                            <div 
+                                className="resize-handle vertical"
+                                onMouseDown={(e) => handleMouseDown(e, index, 'vertical')}
+                            />
+                        )}
+                    </React.Fragment>
+                ))}
+            </div>
+
             <div className="layout-controls">
                 <div className="control-group">
-                    <label>方向：</label>
+                    <label>行数：</label>
                     <select 
-                        value={direction}
-                        onChange={(e) => setDirection(e.target.value as Direction)}
+                        value={rows}
+                        onChange={(e) => handleGridSizeChange(Number(e.target.value), cols)}
                     >
-                        <option value="horizontal">水平分割</option>
-                        <option value="vertical">垂直分割</option>
+                        {[2, 3, 4, 5].map(num => (
+                            <option key={num} value={num}>{num}行</option>
+                        ))}
                     </select>
                 </div>
 
                 <div className="control-group">
-                    <label>分割份数：</label>
+                    <label>列数：</label>
                     <select 
-                        value={sectionCount}
-                        onChange={(e) => handleSectionCountChange(Number(e.target.value))}
+                        value={cols}
+                        onChange={(e) => handleGridSizeChange(rows, Number(e.target.value))}
                     >
-                        {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
-                            <option key={num} value={num}>{num}份</option>
+                        {[2, 3, 4, 5].map(num => (
+                            <option key={num} value={num}>{num}列</option>
                         ))}
                     </select>
                 </div>
@@ -191,49 +266,20 @@ export const LayoutDivider: React.FC = () => {
                             type="text" 
                             value={customRatios}
                             onChange={handleCustomRatiosChange}
-                            placeholder={`例如: ${Array(sectionCount).fill('1').join(':')}`}
+                            placeholder={`例如: ${Array(rows * cols).fill('1').join(':')}`}
                         />
                         <button onClick={applyCustomRatios}>应用</button>
                     </div>
                 )}
 
-                    <div className='drawing_board_fixed'>
-                        <button 
-                            onClick={DrawingBoardFixed}
-                            className={drawing_board_fixed ? 'fixed' : ''}
-                        >
-                            {drawing_board_fixed ? '取消固定' : '固定画板'}
-                        </button>
-                    </div>
-            </div>
-            
-            <div 
-                className={`layout-container ${direction} ${drawing_board_fixed ? 'fixed' : ''}`}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-            >
-                {sections.map((section, index) => (
-                    <React.Fragment key={section.id}>
-                        <div 
-                            className="layout-section"
-                            style={{ 
-                                [direction === 'horizontal' ? 'width' : 'height']: `${(section[direction === 'horizontal' ? 'width' : 'height'] / sectionCount) * 100}%`,
-                                backgroundColor: section.color
-                            }}
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, section.id)}
-                        >
-                        </div>
-                        {index < sections.length - 1 && (
-                            <div 
-                                className={`resize-handle ${direction}`}
-                                onMouseDown={(e) => handleMouseDown(e, index)}
-                            />
-                        )}
-                    </React.Fragment>
-                ))}
+                <div className='drawing_board_fixed'>
+                    <button 
+                        onClick={DrawingBoardFixed}
+                        className={drawing_board_fixed ? 'fixed' : ''}
+                    >
+                        {drawing_board_fixed ? '取消固定' : '固定画板'}
+                    </button>
+                </div>
             </div>
         </div>
     );
