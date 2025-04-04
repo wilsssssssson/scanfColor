@@ -205,7 +205,7 @@ export const LayoutDivider: React.FC = () => {
                             onDragLeave={handleDragLeave}
                             onDrop={(e) => handleDrop(e, section.id)}
                         >
-                            <div className="section-label">{section.id}</div>
+                           
                         </div>
                         {section.col < cols - 1 && (
                             <div 

@@ -23,7 +23,7 @@ const colorThemes = {
 
 function App() {
   const [currentTheme, setCurrentTheme] = useState(MorandiColors);
-  const [themeName, setThemeName] = useState('MorandiColors');
+  const [themeName, setThemeName] = useState('Morandi');
 
   const handleThemeChange = (theme: any) => {
     setCurrentTheme(theme);
